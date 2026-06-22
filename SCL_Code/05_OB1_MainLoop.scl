@@ -1,0 +1,42 @@
+ORGANIZATION_BLOCK "Main"
+VAR
+    StepExecutor: "FB_StepExecutor";
+    Config: "ConfigDB";
+    Backup: "BackupDB";
+    LastSaveFlag: BOOL := FALSE;
+    I: INT;
+END_VAR
+
+BEGIN
+
+    CALL StepExecutor(
+        Enable := Config.ProcessRunning OR Config.ProcessRunning,
+        Start := Config.ProcessRunning,
+        Stop := NOT Config.ProcessRunning,
+        CurrentStepIndex => Config.CurrentStep,
+        IsRunning => Config.ProcessRunning,
+        IsComplete => Config.ProcessComplete
+    );
+    
+    IF Config.SaveConfigFlag AND NOT LastSaveFlag THEN
+        Backup.TotalSteps := Config.TotalSteps;
+        
+        FOR I := 0 TO 49 DO
+            Backup.Steps[I] := Config.Steps[I];
+        END_FOR;
+        
+        Backup.LastSaveTime := SYS_TICK_COUNT;
+        Config.SaveConfigFlag := FALSE;
+    END_IF;
+    
+    LastSaveFlag := Config.SaveConfigFlag;
+    
+    IF Config.CurrentStep >= Config.TotalSteps THEN
+        Config.CurrentStep := 0;
+    END_IF;
+    
+    IF NOT Config.ProcessRunning THEN
+        Config.ProcessError := FALSE;
+    END_IF;
+
+END_ORGANIZATION_BLOCK

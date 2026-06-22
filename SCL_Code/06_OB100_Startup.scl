@@ -1,0 +1,37 @@
+ORGANIZATION_BLOCK "Startup"
+VAR
+    Config: "ConfigDB";
+    Backup: "BackupDB";
+    I: INT;
+END_VAR
+
+BEGIN
+
+    Config.TotalSteps := Backup.TotalSteps;
+    
+    FOR I := 0 TO 49 DO
+        Config.Steps[I] := Backup.Steps[I];
+    END_FOR;
+    
+    Config.CurrentStep := 0;
+    Config.ProcessRunning := FALSE;
+    Config.ProcessComplete := FALSE;
+    Config.ProcessError := FALSE;
+    Config.ErrorMessage := "";
+    Config.SaveConfigFlag := FALSE;
+    Config.LoadConfigFlag := FALSE;
+    
+    %Q0.0 := FALSE;
+    %Q0.1 := FALSE;
+    %Q0.2 := FALSE;
+    %Q0.3 := FALSE;
+    %Q0.4 := FALSE;
+    %Q0.5 := FALSE;
+    %Q1.0 := FALSE;
+    %Q1.1 := FALSE;
+    %Q1.2 := FALSE;
+    %Q1.3 := FALSE;
+    %Q1.4 := FALSE;
+    %Q1.5 := FALSE;
+
+END_ORGANIZATION_BLOCK

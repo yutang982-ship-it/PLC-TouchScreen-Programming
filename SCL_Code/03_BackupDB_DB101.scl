@@ -1,0 +1,13 @@
+DATA_BLOCK "BackupDB"
+    VAR
+        // ---- 工序管理备份 ----
+        TotalSteps: INT := 0;                   // 备份的总步骤数
+        
+        // ---- 工序步骤表备份（最多50个步骤） ----
+        Steps: ARRAY[0..49] OF "StepData";
+        
+        // ---- 备份标志 ----
+        LastSaveTime: DINT := 0;                // 最后保存的时间戳
+        
+    END_VAR
+END_DATA_BLOCK

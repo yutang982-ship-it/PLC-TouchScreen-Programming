@@ -1,0 +1,25 @@
+DATA_BLOCK "ConfigDB"
+    VAR
+        // ---- 工序管理 ----
+        TotalSteps: INT := 0;                   // 总步骤数 (0-50)
+        CurrentStep: INT := 0;                  // 当前执行的步骤索引
+        
+        // ---- 运行状态 ----
+        ProcessRunning: BOOL := FALSE;          // 工艺是否在运行
+        ProcessComplete: BOOL := FALSE;         // 工艺是否已完成
+        ProcessError: BOOL := FALSE;            // 是否发生错误
+        ErrorMessage: STRING[100];              // 错误信息
+        
+        // ---- 工序步骤表（最多50个步骤） ----
+        Steps: ARRAY[0..49] OF "StepData";
+        
+        // ---- 触摸屏操作标志 ----
+        SaveConfigFlag: BOOL := FALSE;          // 触摸屏：保存配置信号
+        LoadConfigFlag: BOOL := FALSE;          // 触摸屏：加载配置信号
+        
+        // ---- 内部运行变量 ----
+        StepStartTime: DINT := 0;               // 当前步骤开始时间
+        TimerElapsed: DINT := 0;                // 计时器已用时间
+        
+    END_VAR
+END_DATA_BLOCK

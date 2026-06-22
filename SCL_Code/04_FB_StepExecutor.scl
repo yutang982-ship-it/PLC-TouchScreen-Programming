@@ -1,0 +1,231 @@
+FUNCTION_BLOCK "FB_StepExecutor"
+    VAR_INPUT
+        Enable: BOOL;                           // 启用信号
+        Start: BOOL;                            // 启动信号
+        Stop: BOOL;                             // 停止信号
+    END_VAR
+    
+    VAR_OUTPUT
+        CurrentStepIndex: INT;                  // 当前步骤索引（输出用于显示）
+        IsRunning: BOOL;                        // 是否运行中
+        IsComplete: BOOL;                       // 是否完成
+        ErrorMessage: STRING[100];              // 错误信息
+    END_VAR
+    
+    VAR
+        ConfigDB: "ConfigDB";
+        CurrentStepData: "StepData";
+        OutputTimer: TON;
+        TimeoutTimer: TON;
+        State: INT := 0;
+        InputValue: BOOL;
+        StepStartTick: DINT;
+    END_VAR
+
+BEGIN
+
+    // ========== 状态 0: 空闲 ==========
+    IF State = 0 THEN
+        IsRunning := FALSE;
+        IsComplete := FALSE;
+        IF Start AND Enable THEN
+            CurrentStepIndex := 0;
+            State := 1;
+            IsRunning := TRUE;
+        END_IF;
+    END_IF;
+    
+    // ========== 状态 1: 执行输出 ==========
+    IF State = 1 THEN
+        IF CurrentStepIndex >= ConfigDB.TotalSteps THEN
+            State := 3;
+            GOTO CHECK_STOP;
+        END_IF;
+        
+        CurrentStepData := ConfigDB.Steps[CurrentStepIndex];
+        
+        IF NOT CurrentStepData.Enabled THEN
+            CurrentStepIndex := CurrentStepData.NextStep;
+            GOTO CHECK_STOP;
+        END_IF;
+        
+        CASE CurrentStepData.OutputAddress OF
+            0:
+                CASE CurrentStepData.OutputBit OF
+                    0: %Q0.0 := CurrentStepData.OutputValue;
+                    1: %Q0.1 := CurrentStepData.OutputValue;
+                    2: %Q0.2 := CurrentStepData.OutputValue;
+                    3: %Q0.3 := CurrentStepData.OutputValue;
+                    4: %Q0.4 := CurrentStepData.OutputValue;
+                    5: %Q0.5 := CurrentStepData.OutputValue;
+                END_CASE;
+            1:
+                CASE CurrentStepData.OutputBit OF
+                    0: %Q1.0 := CurrentStepData.OutputValue;
+                    1: %Q1.1 := CurrentStepData.OutputValue;
+                    2: %Q1.2 := CurrentStepData.OutputValue;
+                    3: %Q1.3 := CurrentStepData.OutputValue;
+                    4: %Q1.4 := CurrentStepData.OutputValue;
+                    5: %Q1.5 := CurrentStepData.OutputValue;
+                END_CASE;
+        END_CASE;
+        
+        OutputTimer(IN := TRUE, PT := INT_TO_TIME(CurrentStepData.OutputDuration));
+        
+        IF CurrentStepData.TimeoutDuration > 0 THEN
+            TimeoutTimer(IN := TRUE, PT := INT_TO_TIME(CurrentStepData.TimeoutDuration));
+        ELSE
+            TimeoutTimer(IN := FALSE);
+        END_IF;
+        
+        StepStartTick := SYS_TICK_COUNT;
+        State := 2;
+    END_IF;
+    
+    // ========== 状态 2: 等待输入或超时 ==========
+    IF State = 2 THEN
+        OutputTimer(IN := TRUE, PT := INT_TO_TIME(CurrentStepData.OutputDuration));
+        IF CurrentStepData.TimeoutDuration > 0 THEN
+            TimeoutTimer(IN := TRUE, PT := INT_TO_TIME(CurrentStepData.TimeoutDuration));
+        END_IF;
+        
+        IF CurrentStepData.TimeoutDuration > 0 AND TimeoutTimer.Q THEN
+            CASE CurrentStepData.OutputAddress OF
+                0:
+                    CASE CurrentStepData.OutputBit OF
+                        0: %Q0.0 := FALSE;
+                        1: %Q0.1 := FALSE;
+                        2: %Q0.2 := FALSE;
+                        3: %Q0.3 := FALSE;
+                        4: %Q0.4 := FALSE;
+                        5: %Q0.5 := FALSE;
+                    END_CASE;
+                1:
+                    CASE CurrentStepData.OutputBit OF
+                        0: %Q1.0 := FALSE;
+                        1: %Q1.1 := FALSE;
+                        2: %Q1.2 := FALSE;
+                        3: %Q1.3 := FALSE;
+                        4: %Q1.4 := FALSE;
+                        5: %Q1.5 := FALSE;
+                    END_CASE;
+            END_CASE;
+            
+            TimeoutTimer(IN := FALSE);
+            OutputTimer(IN := FALSE);
+            CurrentStepIndex := CurrentStepData.TimeoutNextStep;
+            State := 1;
+            GOTO CHECK_STOP;
+        END_IF;
+        
+        CASE CurrentStepData.InputAddress OF
+            0:
+                CASE CurrentStepData.InputBit OF
+                    0: InputValue := %I0.0;
+                    1: InputValue := %I0.1;
+                    2: InputValue := %I0.2;
+                    3: InputValue := %I0.3;
+                    4: InputValue := %I0.4;
+                    5: InputValue := %I0.5;
+                    6: InputValue := %I0.6;
+                    7: InputValue := %I0.7;
+                END_CASE;
+            1:
+                CASE CurrentStepData.InputBit OF
+                    0: InputValue := %I1.0;
+                    1: InputValue := %I1.1;
+                    2: InputValue := %I1.2;
+                    3: InputValue := %I1.3;
+                    4: InputValue := %I1.4;
+                    5: InputValue := %I1.5;
+                    6: InputValue := %I1.6;
+                    7: InputValue := %I1.7;
+                END_CASE;
+            255:
+                InputValue := FALSE;
+        END_CASE;
+        
+        IF CurrentStepData.InputCondition = FALSE THEN
+            IF InputValue THEN
+                GOTO INPUT_TRIGGERED;
+            END_IF;
+        ELSE
+            IF NOT InputValue THEN
+                GOTO INPUT_TRIGGERED;
+            END_IF;
+        END_IF;
+        
+        IF CurrentStepData.InputAddress = 255 THEN
+            IF CurrentStepData.OutputDuration > 0 AND OutputTimer.Q THEN
+                GOTO INPUT_TRIGGERED;
+            ELSIF CurrentStepData.OutputDuration = 0 THEN
+                GOTO INPUT_TRIGGERED;
+            END_IF;
+        END_IF;
+        
+        GOTO STEP_WAIT_CONTINUE;
+        
+    INPUT_TRIGGERED:
+        IF CurrentStepData.OutputDuration > 0 THEN
+            CASE CurrentStepData.OutputAddress OF
+                0:
+                    CASE CurrentStepData.OutputBit OF
+                        0: %Q0.0 := FALSE;
+                        1: %Q0.1 := FALSE;
+                        2: %Q0.2 := FALSE;
+                        3: %Q0.3 := FALSE;
+                        4: %Q0.4 := FALSE;
+                        5: %Q0.5 := FALSE;
+                    END_CASE;
+                1:
+                    CASE CurrentStepData.OutputBit OF
+                        0: %Q1.0 := FALSE;
+                        1: %Q1.1 := FALSE;
+                        2: %Q1.2 := FALSE;
+                        3: %Q1.3 := FALSE;
+                        4: %Q1.4 := FALSE;
+                        5: %Q1.5 := FALSE;
+                    END_CASE;
+            END_CASE;
+        END_IF;
+        
+        TimeoutTimer(IN := FALSE);
+        OutputTimer(IN := FALSE);
+        CurrentStepIndex := CurrentStepData.NextStep;
+        State := 1;
+        
+    STEP_WAIT_CONTINUE:
+    END_IF;
+    
+    // ========== 状态 3: 完成 ==========
+    IF State = 3 THEN
+        IsRunning := FALSE;
+        IsComplete := TRUE;
+        OutputTimer(IN := FALSE);
+        TimeoutTimer(IN := FALSE);
+        State := 0;
+    END_IF;
+    
+    CHECK_STOP:
+    IF Stop THEN
+        %Q0.0 := FALSE;
+        %Q0.1 := FALSE;
+        %Q0.2 := FALSE;
+        %Q0.3 := FALSE;
+        %Q0.4 := FALSE;
+        %Q0.5 := FALSE;
+        %Q1.0 := FALSE;
+        %Q1.1 := FALSE;
+        %Q1.2 := FALSE;
+        %Q1.3 := FALSE;
+        %Q1.4 := FALSE;
+        %Q1.5 := FALSE;
+        
+        State := 0;
+        IsRunning := FALSE;
+        IsComplete := FALSE;
+        OutputTimer(IN := FALSE);
+        TimeoutTimer(IN := FALSE);
+    END_IF;
+
+END_FUNCTION_BLOCK
